@@ -231,7 +231,6 @@ async def run_bot():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_plate_text))
     application.add_handler(CallbackQueryHandler(on_callback))
 
-    # ✅ PTB v20+ stable runner (no updater.idle)
     await application.run_polling(close_loop=False)
 
 
@@ -239,7 +238,6 @@ async def run_bot():
 # Main
 # ============================
 async def main():
-    # Run both: bot + web health server
     await asyncio.gather(run_bot(), run_web())
 
 
