@@ -54,48 +54,12 @@ async def take_screenshot(url: str, out_path: str) -> None:
         context = await browser.new_context(
             viewport={"width": 1280, "height": 720},
             device_scale_factor=1,
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari/537.36",
         )
         page = await context.new_page()
-
         try:
-            await page.goto(url, wait_until="networkidle", timeout=60000)
-
-            # کوکی/پاپ‌آپ (best-effort)
-            for selector in [
-                "button:has-text('Accept')",
-                "button:has-text('Accept all')",
-                "button:has-text('I Agree')",
-                "button:has-text('OK')",
-                "button:has-text('Got it')",
-            ]:
-                try:
-                    btn = await page.query_selector(selector)
-                    if btn:
-                        await btn.click(timeout=1500)
-                        break
-                except Exception:
-                    pass
-
-            # --- Auto scroll to force lazy-load ---
-            await page.evaluate("""
-                async () => {
-                  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-                  let last = -1;
-                  for (let i = 0; i < 40; i++) {
-                    window.scrollBy(0, Math.max(600, window.innerHeight * 0.8));
-                    await sleep(600);
-                    const h = document.body.scrollHeight;
-                    if (h === last) break;
-                    last = h;
-                  }
-                  window.scrollTo(0, 0);
-                  await sleep(800);
-                }
-            """)
-
-            await page.screenshot(path=out_path, full_page=True)
-
+            await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            await page.wait_for_timeout(2000)
+            await page.screenshot(path=out_path, full_page=True)  # همون حالت قبل
         finally:
             await context.close()
             await browser.close()
