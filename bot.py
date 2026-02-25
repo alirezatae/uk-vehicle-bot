@@ -56,10 +56,17 @@ async def take_screenshot(url: str, out_path: str) -> None:
             device_scale_factor=1,
         )
         page = await context.new_page()
+
         try:
+            # networkidle می‌تونه بی‌نهایت گیر کنه روی سایت‌های سنگین
             await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+
+            # یک صبر کوتاه برای رندر
             await page.wait_for_timeout(2000)
-            await page.screenshot(path=out_path, full_page=True)  # همون حالت قبل
+
+            # به جای full_page سنگین، فقط viewport بگیر (پایدارترین حالت)
+            await page.screenshot(path=out_path, full_page=False)
+
         finally:
             await context.close()
             await browser.close()
