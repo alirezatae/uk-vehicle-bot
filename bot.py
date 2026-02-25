@@ -59,62 +59,46 @@ async def take_screenshot(url: str, out_path: str) -> None:
 
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            await page.wait_for_timeout(2500)
 
-            # 1) صبر هوشمند برای نهایی شدن Score (تا 20 ثانیه)
-            # ایده: عدد بزرگ وسط گیج تغییر می‌کنه؛ ما صبر می‌کنیم 2 بار پشت‌سرهم ثابت بمونه
-            await page.wait_for_timeout(1500)
+            # 1) صبر برای اینکه score نهایی بیاد (ساده و مطمئن)
+            await page.wait_for_timeout(8000)
 
-            stable = 0
-            last = None
-            for _ in range(20):  # ~20s
-                try:
-                    score = await page.evaluate("""
-                      () => {
-                        // اولین عدد بزرگ که معمولاً score هست
-                        const el = document.querySelector("h1, h2, h3, .score, [class*='score']");
-                        // fallback: پیدا کردن بزرگترین متن عددی داخل صفحه
-                        const texts = Array.from(document.querySelectorAll("body *"))
-                          .map(e => e.textContent?.trim())
-                          .filter(t => t && /^[0-9]{2,4}$/.test(t));
-                        if (texts.length) return texts[0];
-                        return null;
-                      }
-                    """)
-                except Exception:
-                    score = None
-
-                if score and score == last:
-                    stable += 1
-                else:
-                    stable = 0
-                last = score
-
-                if stable >= 2:  # دو بار پشت سر هم ثابت شد
-                    break
-                await page.wait_for_timeout(1000)
-
-            # 2) اسکرول مرحله‌ای برای lazy-load (محدود برای جلوگیری از OOM)
+            # 2) اسکرول واقعی: اگر کانتینر اسکرول‌دار وجود داشت همونو اسکرول بده
             await page.evaluate("""
-                async () => {
-                  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-                  let lastH = -1;
-                  for (let i = 0; i < 14; i++) {   // محدود ولی کافی
-                    window.scrollBy(0, Math.max(800, window.innerHeight * 0.9));
-                    await sleep(700);
-                    const h = document.body.scrollHeight;
-                    if (h === lastH) break;
-                    lastH = h;
-                  }
+              async () => {
+                const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+                // پیدا کردن بهترین scroll container (بزرگترین عنصر با overflow و scrollHeight بیشتر)
+                const candidates = Array.from(document.querySelectorAll('body *'))
+                  .filter(el => {
+                    const s = getComputedStyle(el);
+                    const canScroll = (s.overflowY === 'auto' || s.overflowY === 'scroll');
+                    return canScroll && el.scrollHeight > el.clientHeight + 200;
+                  })
+                  .sort((a,b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));
+
+                const scroller = candidates[0] || document.scrollingElement || document.documentElement;
+
+                let last = -1;
+                for (let i = 0; i < 18; i++) {
+                  scroller.scrollBy(0, Math.max(900, scroller.clientHeight * 0.9));
                   await sleep(800);
-                  window.scrollTo(0, 0);
-                  await sleep(800);
+                  const pos = scroller.scrollTop + scroller.clientHeight;
+                  const max = scroller.scrollHeight;
+                  if (Math.abs(max - pos) < 40) break; // نزدیک ته
+                  if (scroller.scrollTop === last) break;
+                  last = scroller.scrollTop;
                 }
+
+                await sleep(1200);
+                // برگرد بالا برای اینکه full_page از بالا شروع شه
+                scroller.scrollTo(0, 0);
+                await sleep(800);
+              }
             """)
 
-            # 3) یک صبر کوتاه بعد از برگشت به بالا
-            await page.wait_for_timeout(1200)
-
-            # 4) full_page
+            # 3) full_page
             await page.screenshot(path=out_path, full_page=True)
 
         finally:
